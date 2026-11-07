@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>影音播放器</title>
+<style>
+:root{--bg:#0b0e1a;--s1:#141935;--s2:#1c2347;--ln:#2a3263;--tx:#e8ebff;--mu:#8a93bd;--ac:#4de3c8;--wm:#ffb454}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:var(--s2);border:1px solid var(--ln);border-radius:10px;padding:7px 12px;cursor:pointer}
+button:active{background:var(--ln)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#mp{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;background:var(--bg);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);overflow:hidden}
+@media(min-width:900px){#mp:not(.mini){left:calc(50% - 380px);right:auto;width:760px;border:1px solid var(--ln)}}
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px}
+.top b{flex:1;font-size:16px}
+#addbar{display:none;gap:8px;flex-wrap:wrap;padding:0 12px 8px}
+#addbar.show{display:flex}
+#addbar input[type=text]{flex:1;min-width:170px;background:var(--s1);border:1px solid var(--ln);border-radius:10px;color:var(--tx);padding:8px 10px;font:inherit}
+#stage{position:relative;width:100%;aspect-ratio:16/9;max-height:36vh;background:#000;flex:none}
+#v,#w,#yt,#yt iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border:0}
+#cap{position:absolute;left:4%;right:4%;bottom:5%;text-align:center;font-weight:700;color:#fff;text-shadow:0 0 4px #000,0 0 4px #000,0 1px 3px #000;font-size:calc(16px*var(--ss,1));line-height:1.35;white-space:pre-line;pointer-events:none}
+#cover{display:none;position:absolute;inset:0;place-items:center;text-align:center;padding:16px;background:radial-gradient(circle at 30% 20%,#2a3263,#0b0e1a 70%);font-size:20px;font-weight:700}
+#empty{position:absolute;inset:0;display:grid;place-content:center;gap:6px;text-align:center;color:var(--mu);background:var(--s1);padding:12px}
+#stage[data-k=yt] :is(#v,#w),#stage[data-k=audio] :is(#v,#w),#stage:not([data-k=yt]) #yt{display:none}
+#stage[data-k=audio] #cover{display:grid}
+#stage[data-k] #empty{display:none}
+.now{padding:12px 16px 4px}
+#ttl{font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#meta{color:var(--mu);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seekrow{display:flex;align-items:center;gap:10px;padding:4px 16px;font-variant-numeric:tabular-nums;color:var(--mu);font-size:13px}
+input[type=range]{flex:1;accent-color:var(--ac);height:28px}
+.ctl{display:flex;justify-content:center;align-items:center;gap:12px;padding:6px 12px}
+.ctl .i{width:46px;height:46px;border-radius:50%;padding:0;display:grid;place-items:center;border-color:transparent;background:none}
+.ctl .i svg{width:24px;height:24px;fill:var(--tx)}
+.ctl .sec{font-size:13px;padding:6px 10px}
+.pp{position:relative;width:76px;height:76px;border-radius:50%;padding:0;background:var(--s1);border:0}
+.pp .r{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.pp circle{fill:none;stroke-width:4}
+.pp .tr{stroke:var(--ln)}
+.pp .pg{stroke:var(--ac);stroke-linecap:round;stroke-dasharray:213.63;stroke-dashoffset:213.63}
+.pp .ic{position:absolute;inset:0;margin:auto;width:30px;height:30px;fill:var(--tx)}
+.on{color:var(--ac)!important;border-color:var(--ac)!important}
+.tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;padding:4px 12px 8px}
+.tools button{font-size:13px;padding:6px 10px}
+.tabs{display:flex;border-bottom:1px solid var(--ln);margin-top:4px}
+.tabs button{flex:1;border:0;border-radius:0;background:none;padding:10px;color:var(--mu)}
+.tabs button.on{color:var(--ac);box-shadow:inset 0 -2px var(--ac)}
+.panel{flex:1;overflow:auto;display:none;padding:8px 12px 16px}
+.panel.show{display:block}
+.note{color:var(--mu);padding:20px 8px;text-align:center;font-size:14px}
+.row{display:flex;align-items:center;gap:6px;padding:8px;border-radius:12px}
+.row.cur{background:var(--s2);box-shadow:inset 3px 0 var(--ac)}
+.row .tt{flex:1;min-width:0;cursor:pointer}
+.row .tt>div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row small{color:var(--mu);font-size:12px}
+.row button{padding:4px 8px;font-size:12px;background:none;border-color:transparent}
+.subtools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;font-size:13px;color:var(--mu)}
+.subtools button{padding:4px 10px;font-size:13px}
+.subtools input{flex:1;min-width:120px;background:var(--s1);border:1px solid var(--ln);border-radius:10px;color:var(--tx);padding:6px 10px;font:inherit}
+.cue{display:flex;gap:10px;padding:8px;border-radius:10px;cursor:pointer;font-size:14px}
+.cue i{font-style:normal;color:var(--mu);font-variant-numeric:tabular-nums;flex:none}
+.cue.act{background:var(--s2);color:var(--wm)}
+#eqb{display:flex;justify-content:space-between;margin:10px 0}
+#eqb label{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--mu);width:9%}
+#eqb input{writing-mode:vertical-lr;direction:rtl;width:26px;height:130px;flex:none}
+#spec{width:100%;height:80px;background:var(--s1);border-radius:10px;display:block}
+.fxs label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mu);padding:4px 0}
+.fxs label span:first-child{width:86px;flex:none}
+.fxs label span:last-child{width:52px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+select{background:var(--s2);color:var(--tx);border:1px solid var(--ln);border-radius:10px;padding:6px 8px;font:inherit;font-size:13px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--s2);border:1px solid var(--ln);padding:8px 14px;border-radius:12px;display:none;z-index:9100;max-width:90vw}
+#mp.mini{inset:auto 8px calc(8px + env(safe-area-inset-bottom)) 8px;width:auto;left:8px;height:68px;padding:0;flex-direction:row;align-items:center;gap:10px;border:1px solid var(--ln);border-radius:18px;background:var(--s1);box-shadow:0 8px 30px #000a}
+#mp.mini :is(.top,#addbar,.seekrow,.tools,.tabs,.panel,#cap,.ctl .sec){display:none}
+#mp.mini #stage{width:52px;height:52px;max-height:none;aspect-ratio:auto;margin-left:8px;border-radius:10px;overflow:hidden;flex:none}
+#mp.mini .now{flex:1;min-width:0;padding:0;cursor:pointer}
+#mp.mini #ttl{font-size:15px}
+#mp.mini .ctl{padding:0 8px 0 0;gap:2px}
+#mp.mini .ctl .i{width:38px;height:38px}
+#mp.mini .pp{width:48px;height:48px}
+#mp.mini .pp .ic{width:20px;height:20px}
+</style>
+</head>
+<body>
+<div id="mp">
+  <div class="top"><button id="mn">縮小</button><b>影音播放器</b><button id="ad">＋ 加入</button></div>
+  <div id="addbar">
+    <button id="pf">選擇檔案</button><button id="ps">載入字幕</button>
+    <input type="text" id="url" placeholder="貼上 YouTube 或影音網址"><button id="go">播放</button>
+  </div>
+  <input type="file" id="fm" multiple hidden accept="audio/*,video/*,.srt,.vtt,.mkv,.m4a,.flac,.opus">
+  <input type="file" id="fs" hidden accept=".srt,.vtt">
+  <div id="stage"><video id="v" playsinline></video><video id="w" playsinline hidden></video><div id="yt"></div><div id="cover"></div><div id="cap"></div>
+    <div id="empty"><b>還沒有內容</b><span>點「＋ 加入」選擇檔案或貼上網址</span></div></div>
+  <div class="now"><div id="ttl">尚未播放</div><div id="meta"></div></div>
+  <div class="seekrow"><span id="tc">0:00</span><input type="range" id="sk" min="0" max="1000" value="0" aria-label="播放進度"><span id="td">0:00</span></div>
+  <div class="ctl">
+    <button class="sec" id="sh">隨機</button>
+    <button class="i" id="pv" aria-label="上一個"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg></button>
+    <button class="pp" id="pp" aria-label="播放或暫停"><svg class="r" viewBox="0 0 76 76"><circle class="tr" cx="38" cy="38" r="34"/><circle class="pg" id="pg" cx="38" cy="38" r="34"/></svg><svg class="ic" id="ic" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+    <button class="i" id="nx" aria-label="下一個"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+    <button class="sec" id="lp">循環：關</button>
+  </div>
+  <div class="tools">
+    <button id="sp">1×</button>
+    <input type="range" id="vol" min="0" max="1" step="0.05" value="1" style="flex:none;width:110px" aria-label="音量">
+    <button id="ab">A–B 重複</button>
+    <button id="sl">睡眠計時</button>
+  </div>
+  <div class="tabs"><button class="on" data-p="pl">播放清單</button><button data-p="sb">字幕</button><button data-p="fx">音效</button></div>
+  <div class="panel show" id="pl"></div>
+  <div class="panel" id="fx">
+    <div class="subtools"><button id="fxon">音效：關</button><select id="prs" aria-label="預設音效"></select><button id="fxr">重設</button></div>
+    <canvas id="spec" width="600" height="110"></canvas>
+    <div id="eqb"></div>
+    <div class="fxs" id="fxs"></div>
+    <p class="note" id="fxn"></p>
+  </div>
+  <div class="panel" id="sb">
+    <div class="subtools">
+      <span id="dv">字幕延遲 0s</span><button id="dm">−0.5</button><button id="dp">＋0.5</button>
+      <button id="fa">A−</button><button id="fb">A＋</button><input type="text" id="qs" placeholder="搜尋字幕">
+    </div>
+    <div id="cl"></div>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+<script>
+(()=>{
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const V=$('#v'),W=$('#w'),root=$('#mp'),RATES=[0.75,1,1.25,1.5,2],SLEEP=[0,15,30,60],LP=['循環：關','循環：全部','循環：單曲'];
+let M=V,ac,nodes,L=[],ix=-1,C=null,yt=null,ytOK=false,ytQ=null,cues=[],lastCue=-1,dly=0,ssz=1,A=null,B=null,lp=0,sh=false,play=false,rate=1,vol=1,slp=null,slpMin=0,drag=false;
+const FX={on:false,eq:Array(10).fill(0),pre:0,bass:0,rev:0,echo:0,pan:0,boost:1,lim:true},BANDS=[31,62,125,250,500,1000,2000,4000,8000,16000],
+PRE={平坦:[0,0,0,0,0,0,0,0,0,0],低音加強:[6,5,4,2,0,0,0,0,0,0],人聲:[-2,-2,-1,1,3,4,3,1,0,-1],流行:[-1,2,4,4,2,0,-1,-1,-1,-2],搖滾:[4,3,2,-1,-2,-1,2,3,4,4],古典:[0,0,0,0,0,0,-2,-3,-3,-4],電子:[5,4,1,0,-2,2,1,3,4,5],夜間:[-3,-2,0,1,2,2,1,0,-1,-2]};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>{s=Math.max(0,s|0);const h=s/3600|0,m=(s%3600)/60|0,x=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
+const T=()=>C?(C.type==='yt'?(yt&&yt.getCurrentTime?yt.getCurrentTime():0):M.currentTime):0;
+const D=()=>C?(C.type==='yt'?(yt&&yt.getDuration?yt.getDuration():0):(M.duration||0)):0;
+const seek=x=>{if(!C)return;C.type==='yt'?(yt&&yt.seekTo&&yt.seekTo(x,true)):(M.currentTime=x)};
+const toggle=()=>{if(!C)return;ac&&ac.resume();if(C.type==='yt'){if(yt&&yt.playVideo)play?yt.pauseVideo():yt.playVideo()}else M.paused?M.play().catch(()=>{}):M.pause()};
+let tt;const toast=(m,ms=3000)=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',ms)};
+function save(){try{localStorage.setItem('mp1',JSON.stringify({fx:FX,vol,rate,lp,sh,items:L.filter(x=>x.type!=='local').map(x=>({type:x.type,id:x.id,url:x.url,title:x.title,kind:x.kind}))}))}catch{}}
+try{const s=JSON.parse(localStorage.getItem('mp1')||'null');if(s){if(s.fx)Object.assign(FX,s.fx);vol=s.vol??1;rate=s.rate||1;lp=s.lp||0;sh=!!s.sh;L=s.items||[]}}catch{}
+function setP(p){play=p;$('#ic').innerHTML=p?'<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>';if('mediaSession'in navigator)navigator.mediaSession.playbackState=p?'playing':'paused'}
+function applyRate(){[V,W].forEach(e=>{e.defaultPlaybackRate=rate;e.playbackRate=rate});yt&&yt.setPlaybackRate&&yt.setPlaybackRate(rate)}
+function ui(){$('#sp').textContent=rate+'×';$('#lp').textContent=LP[lp];$('#lp').classList.toggle('on',lp>0);$('#sh').classList.toggle('on',sh);$('#vol').value=vol;
+ $('#ab').textContent=A==null?'A–B 重複':B==null?'A '+fmt(A)+'，再點設 B':'循環 '+fmt(A)+'–'+fmt(B);$('#ab').classList.toggle('on',A!=null);
+ $('#sl').textContent=slpMin?'睡眠 '+slpMin+' 分':'睡眠計時';$('#sl').classList.toggle('on',slpMin>0);
+ $('#dv').textContent='字幕延遲 '+(dly>0?'+':'')+dly+'s';root.style.setProperty('--ss',ssz);fxNote()}
+function loadYT(cb){if(ytOK)return cb();ytQ=cb;if(window.YT&&YT.Player){ytOK=true;return cb()}if(!$('#ytapi')){const s=document.createElement('script');s.id='ytapi';s.src='https://www.youtube.com/iframe_api';s.onerror=()=>toast('無法載入 YouTube 播放器，請檢查網路');document.head.appendChild(s)}}
+window.onYouTubeIframeAPIReady=()=>{ytOK=true;ytQ&&ytQ()};
+function stopMedia(){[V,W].forEach(e=>{e.pause();e.removeAttribute('src');e.load()})}
+function stopAll(){stopMedia();yt&&yt.stopVideo&&yt.stopVideo();$('#stage').removeAttribute('data-k');$('#cap').textContent='';$('#ttl').textContent='尚未播放';$('#meta').textContent='';cues=[];setP(false);renderCues()}
+function go(i){
+ if(i<0||i>=L.length)return;ix=i;C=L[i];A=B=null;cues=C.cues||[];lastCue=-1;
+ $('#stage').dataset.k=C.type==='yt'?'yt':(C.kind||'video');
+ $('#ttl').textContent=C.title;$('#cover').textContent=C.title;$('#meta').textContent={local:'本機檔案',yt:'YouTube',url:'網路串流'}[C.type]+(cues.length?' · 有字幕':'');
+ if('mediaSession'in navigator&&window.MediaMetadata)navigator.mediaSession.metadata=new MediaMetadata({title:C.title});
+ if(C.type==='yt'){stopMedia();
+  loadYT(()=>{if(yt&&yt.loadVideoById)yt.loadVideoById(C.id);else yt=new YT.Player('yt',{videoId:C.id,playerVars:{playsinline:1,cc_load_policy:1,rel:0},events:{onReady:e=>{e.target.setPlaybackRate(rate);e.target.setVolume(vol*100);e.target.playVideo()},onStateChange:e=>{setP(e.data===1);if(e.data===0)ended()},onError:e=>toast(location.protocol==='file:'?'YouTube 不允許在「本機檔案」裡內嵌播放（錯誤 '+e.data+'）。請把播放器放到網站上用網址開啟，或直接到 YouTube 觀看。':'這部影片無法內嵌播放（錯誤 '+e.data+'），可能是影片擁有者限制。',7000)}})})
+ }else{yt&&yt.pauseVideo&&yt.pauseVideo();const n=C.type==='local'?V:W,o=n===V?W:V;o.pause();o.removeAttribute('src');o.load();M=n;V.hidden=M!==V;W.hidden=M!==W;if(M===V)initFx();ac&&ac.resume();M.src=C.url;M.volume=vol;applyRate();M.play().catch(()=>{})}
+ renderList();renderCues();ui()}
+function ended(){if(lp===2){seek(0);if(C.type==='yt')yt.playVideo();else M.play();return}next(true)}
+function next(auto){if(!L.length)return;let n;if(sh&&L.length>1){do n=Math.random()*L.length|0;while(n===ix)}else{n=ix+1;if(n>=L.length){if(lp===1||!auto)n=0;else{setP(false);return}}}go(n)}
+function prev(){if(T()>3)return seek(0);go(ix>0?ix-1:L.length-1)}
+[V,W].forEach(e=>{e.onplay=()=>{if(e===M){setP(true);ac&&ac.resume()}};e.onpause=()=>{if(e===M)setP(false)};e.onended=()=>{if(e===M)ended()};e.onerror=()=>{if(e.getAttribute('src'))toast('無法播放這個檔案或網址')}});
+function parseSub(txt){const out=[];txt=txt.replace(/^\uFEFF/,'').replace(/\r/g,'');
+ const f=x=>{const m=x.trim().match(/(?:(\d+):)?(\d+):(\d+)[.,](\d+)/);return m?(+m[1]||0)*3600+ +m[2]*60+ +m[3]+ +('0.'+m[4]):NaN};
+ for(const b of txt.split(/\n{2,}/)){const ls=b.split('\n'),k=ls.findIndex(l=>l.includes('-->'));if(k<0)continue;
+  const[a,z]=ls[k].split('-->'),s=f(a),e=f(z),t=ls.slice(k+1).join('\n').replace(/<[^>]+>/g,'').trim();
+  if(t&&!isNaN(s)&&!isNaN(e))out.push({s,e,t})}
+ return out.sort((a,b)=>a.s-b.s)}
+async function readText(f){const b=await f.arrayBuffer();try{return new TextDecoder('utf-8',{fatal:true}).decode(b)}catch{return new TextDecoder('big5').decode(b)}}
+async function addFiles(fs){
+ fs=[...fs];const subs=fs.filter(f=>/\.(srt|vtt)$/i.test(f.name)),med=fs.filter(f=>/^(audio|video)\//.test(f.type)||/\.(mp3|m4a|aac|wav|flac|ogg|opus|mp4|m4v|mov|webm|mkv)$/i.test(f.name));
+ const base=n=>n.replace(/\.[^.]+$/,'').toLowerCase();
+ for(const f of med){const it={type:'local',kind:/^audio/.test(f.type)||/\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i.test(f.name)?'audio':'video',title:f.name.replace(/\.[^.]+$/,''),url:URL.createObjectURL(f)};
+  const s=subs.find(x=>base(x.name)===base(f.name)||base(x.name).startsWith(base(f.name)+'.'));
+  if(s)it.cues=parseSub(await readText(s));L.push(it)}
+ if(!med.length&&subs.length){if(C&&C.type!=='yt'){C.cues=cues=parseSub(await readText(subs[0]));lastCue=-1;renderCues();renderList()}else toast('請先播放影片，再載入字幕')}
+ renderList();if(med.length&&(ix<0||!play))go(L.length-med.length)}
+function renderList(){const p=$('#pl');
+ p.innerHTML=L.length?L.map((x,i)=>`<div class="row${i===ix?' cur':''}" data-i="${i}"><div class="tt" data-a="p"><div>${esc(x.title)}</div><small>${{local:'本機',yt:'YouTube',url:'網址'}[x.type]}${x.cues&&x.cues.length?' · 字幕 '+x.cues.length+' 句':''}</small></div><button data-a="u" aria-label="上移">▲</button><button data-a="d" aria-label="下移">▼</button><button data-a="x" aria-label="移除">✕</button></div>`).join(''):'<p class="note">播放清單是空的。</p>';save()}
+function renderCues(){const q=($('#qs').value||'').trim().toLowerCase(),box=$('#cl');
+ if(C&&C.type==='yt'){box.innerHTML='<p class="note">YouTube 的字幕由 YouTube 播放器顯示（已預設開啟，可在播放器上調整）。程式讀不到 YouTube 的字幕文字，所以無法搜尋或點句跳轉。</p>';return}
+ if(!cues.length){box.innerHTML='<p class="note">還沒有字幕。選取影片時一起選同名的 .srt 或 .vtt 檔會自動配對，也可以用「＋ 加入」→「載入字幕」。</p>';return}
+ box.innerHTML=cues.map((c,i)=>q&&!c.t.toLowerCase().includes(q)?'':`<div class="cue" data-i="${i}"><i>${fmt(c.s)}</i><span>${esc(c.t)}</span></div>`).join('')}
+$('#pl').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const i=+b.closest('.row').dataset.i,a=b.dataset.a;
+ if(a==='p')go(i);
+ else if(a==='x'){const x=L.splice(i,1)[0];if(x.type==='local')URL.revokeObjectURL(x.url);if(i<ix)ix--;else if(i===ix){ix=-1;C=null;stopAll()}renderList()}
+ else{const j=a==='u'?i-1:i+1;if(j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];if(ix===i)ix=j;else if(ix===j)ix=i;renderList()}};
+$('#cl').onclick=e=>{const c=e.target.closest('.cue');if(c)seek(cues[+c.dataset.i].s+dly)};
+$('#qs').oninput=renderCues;
+$$('.tabs button').forEach(b=>b.onclick=()=>{$$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));$$('.panel').forEach(p=>p.classList.toggle('show',p.id===b.dataset.p))});
+$('#pp').onclick=toggle;$('#pv').onclick=prev;$('#nx').onclick=()=>next();
+$('#sh').onclick=()=>{sh=!sh;ui();save()};
+$('#lp').onclick=()=>{lp=(lp+1)%3;ui();save()};
+$('#sp').onclick=()=>{rate=RATES[(RATES.indexOf(rate)+1)%RATES.length]||1;applyRate();ui();save()};
+$('#vol').oninput=e=>{vol=+e.target.value;[V,W].forEach(x=>x.volume=vol);yt&&yt.setVolume&&yt.setVolume(vol*100);save()};
+$('#ab').onclick=()=>{if(!C)return;if(A==null)A=T();else if(B==null){const t=T();if(t>A+0.5)B=t;else toast('B 點要在 A 點之後')}else A=B=null;ui()};
+$('#sl').onclick=()=>{slpMin=SLEEP[(SLEEP.indexOf(slpMin)+1)%SLEEP.length];clearTimeout(slp);if(slpMin)slp=setTimeout(()=>{if(play)toggle();slpMin=0;ui()},slpMin*60000);ui()};
+$('#dm').onclick=()=>{dly=Math.round((dly-0.5)*10)/10;ui()};$('#dp').onclick=()=>{dly=Math.round((dly+0.5)*10)/10;ui()};
+$('#fa').onclick=()=>{ssz=Math.max(0.6,Math.round((ssz-0.1)*10)/10);ui()};$('#fb').onclick=()=>{ssz=Math.min(2.4,Math.round((ssz+0.1)*10)/10);ui()};
+$('#sk').oninput=()=>{drag=true;$('#tc').textContent=fmt($('#sk').value/1000*D())};
+$('#sk').onchange=()=>{seek($('#sk').value/1000*D());drag=false};
+$('#mn').onclick=()=>root.classList.add('mini');
+$('.now').onclick=()=>root.classList.remove('mini');
+$('#ad').onclick=()=>$('#addbar').classList.toggle('show');
+$('#pf').onclick=()=>$('#fm').click();$('#ps').onclick=()=>$('#fs').click();
+$('#fm').onchange=e=>{addFiles(e.target.files);e.target.value=''};
+$('#fs').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)addFiles([f])};
+$('#go').onclick=async()=>{const u=$('#url').value.trim();if(!u)return;const m=u.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([\w-]{11})/);let it;
+ if(m){it={type:'yt',id:m[1],url:u,title:'YouTube 影片'};try{const r=await fetch('https://www.youtube.com/oembed?format=json&url='+encodeURIComponent(u));if(r.ok)it.title=(await r.json()).title}catch{}}
+ else if(/^https?:\/\//i.test(u)){let n=u.split('?')[0].split('/').pop()||u;try{n=decodeURIComponent(n)}catch{}it={type:'url',url:u,title:n,kind:/\.(mp3|m4a|aac|wav|flac|ogg|opus)(\?|$)/i.test(u)?'audio':'video'}}
+ else return toast('請貼上 http 開頭的網址');
+ L.push(it);$('#url').value='';renderList();go(L.length-1)};
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.length)addFiles(e.dataTransfer.files)});
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName))return;
+ if(e.code==='Space'){e.preventDefault();toggle()}else if(e.code==='ArrowRight')seek(T()+5);else if(e.code==='ArrowLeft')seek(T()-5)});
+if('mediaSession'in navigator){const m=navigator.mediaSession;try{m.setActionHandler('play',toggle);m.setActionHandler('pause',toggle);m.setActionHandler('previoustrack',prev);m.setActionHandler('nexttrack',()=>next())}catch{}}
+setInterval(()=>{if(!C)return;const t=T(),d=D();
+ if(A!=null&&B!=null&&t>=B)seek(A);
+ if(!drag&&d)$('#sk').value=t/d*1000;
+ $('#tc').textContent=fmt(t);$('#td').textContent=fmt(d);$('#pg').style.strokeDashoffset=213.63*(1-(d?Math.min(1,t/d):0));
+ if(cues.length){const u=t-dly,lc=cues[lastCue];let c=lc&&u>=lc.s&&u<lc.e?lastCue:cues.findIndex(q=>u>=q.s&&u<q.e);
+  if(c!==lastCue){const old=$('#cl .act');old&&old.classList.remove('act');lastCue=c;$('#cap').textContent=c>=0?cues[c].t:'';
+   if(c>=0){const n=$('#cl [data-i="'+c+'"]');if(n){n.classList.add('act');if($('#sb').classList.contains('show')&&!$('#qs').value)n.scrollIntoView({block:'nearest'})}}}}
+},250);
+const db=x=>Math.pow(10,x/20);
+function initFx(){if(ac)return;
+ try{ac=new(window.AudioContext||window.webkitAudioContext)();
+ const src=ac.createMediaElementSource(V),pre=ac.createGain(),bs=ac.createBiquadFilter(),dry=ac.createGain(),conv=ac.createConvolver(),wet=ac.createGain(),dl=ac.createDelay(1),fb=ac.createGain(),ec=ac.createGain(),sum=ac.createGain(),pan=ac.createStereoPanner?ac.createStereoPanner():ac.createGain(),lim=ac.createDynamicsCompressor(),mas=ac.createGain(),an=ac.createAnalyser();
+ const eq=BANDS.map((f,i)=>{const b=ac.createBiquadFilter();b.type=i===0?'lowshelf':i===9?'highshelf':'peaking';b.frequency.value=f;b.Q.value=1.1;return b});
+ bs.type='lowshelf';bs.frequency.value=110;dl.delayTime.value=.32;fb.gain.value=.38;an.fftSize=512;an.smoothingTimeConstant=.8;lim.attack.value=.003;
+ const n=Math.floor(ac.sampleRate*2.2),ir=ac.createBuffer(2,n,ac.sampleRate);
+ for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3)}
+ conv.buffer=ir;src.connect(pre);let p=pre;eq.forEach(x=>{p.connect(x);p=x});p.connect(bs);
+ bs.connect(dry);dry.connect(sum);bs.connect(conv);conv.connect(wet);wet.connect(sum);bs.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(ec);ec.connect(sum);
+ sum.connect(pan);pan.connect(lim);lim.connect(mas);mas.connect(an);an.connect(ac.destination);
+ nodes={pre,eq,bs,wet,ec,pan,lim,mas,an};applyFx()}
+ catch(err){ac=null;nodes=null;toast('這個瀏覽器無法使用音效')}}
+function applyFx(){if(!nodes)return;const o=FX.on,t=ac.currentTime,g=(p,v)=>p.setTargetAtTime(v,t,.02),l=o&&FX.lim;
+ g(nodes.pre.gain,db(o?FX.pre:0));nodes.eq.forEach((x,i)=>g(x.gain,o?FX.eq[i]:0));g(nodes.bs.gain,o?FX.bass:0);g(nodes.wet.gain,o?FX.rev:0);g(nodes.ec.gain,o?FX.echo*.8:0);
+ if(nodes.pan.pan)g(nodes.pan.pan,o?FX.pan:0);nodes.lim.threshold.value=l?-8:0;nodes.lim.ratio.value=l?12:1;nodes.lim.knee.value=0;g(nodes.mas.gain,o?FX.boost:1)}
+const SL=[['pre','前級增益',-12,12,1,v=>v+' dB'],['bass','低音加強',0,12,1,v=>v+' dB'],['rev','殘響',0,1,.05,v=>Math.round(v*100)+'%'],['echo','回音',0,1,.05,v=>Math.round(v*100)+'%'],['pan','左右平衡',-1,1,.1,v=>v==0?'中':(v<0?'左 ':'右 ')+Math.abs(Math.round(v*100))+'%'],['boost','音量放大',0.5,2,.05,v=>Math.round(v*100)+'%']];
+function fxUI(){
+ $('#eqb').innerHTML=BANDS.map((f,i)=>`<label><input type="range" min="-12" max="12" step="1" value="${FX.eq[i]}" data-e="${i}" aria-label="${f} Hz"><span>${f>=1000?f/1000+'k':f}</span></label>`).join('');
+ $('#fxs').innerHTML=SL.map(s=>`<label><span>${s[1]}</span><input type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${FX[s[0]]}" data-s="${s[0]}" style="flex:1"><span>${s[5](FX[s[0]])}</span></label>`).join('')+`<label><span>限幅器</span><button id="limb">${FX.lim?'開':'關'}</button><span></span></label>`;
+ if(!$('#prs').options.length)$('#prs').innerHTML=Object.keys(PRE).map(k=>`<option>${k}</option>`).join('');
+ fxBtn()}
+function fxBtn(){$('#fxon').textContent=FX.on?'音效：開':'音效：關';$('#fxon').classList.toggle('on',FX.on)}
+function fxChg(){applyFx();fxBtn();save()}
+function fxNote(){const n=$('#fxn'),ok=!C||C.type==='local';n.textContent=ok?'音效只對「本機檔案」有效。YouTube 與網路串流來自其他網站，瀏覽器不允許修改它們的聲音。':'目前播放的是 YouTube 或網址，無法套用音效；請改播本機檔案。';n.style.color=ok?'':'var(--wm)'}
+$('#eqb').oninput=e=>{FX.eq[+e.target.dataset.e]=+e.target.value;FX.on=true;fxChg()};
+$('#fxs').oninput=e=>{const k=e.target.dataset.s;if(!k)return;FX[k]=+e.target.value;e.target.nextElementSibling.textContent=SL.find(s=>s[0]===k)[5](FX[k]);FX.on=true;fxChg()};
+$('#fxs').onclick=e=>{if(e.target.id==='limb'){FX.lim=!FX.lim;e.target.textContent=FX.lim?'開':'關';FX.on=true;fxChg()}};
+$('#prs').onchange=e=>{const v=e.target.value;FX.eq=[...PRE[v]];FX.on=true;fxUI();$('#prs').value=v;fxChg()};
+$('#fxon').onclick=()=>{FX.on=!FX.on;fxChg()};
+$('#fxr').onclick=()=>{Object.assign(FX,{on:false,eq:Array(10).fill(0),pre:0,bass:0,rev:0,echo:0,pan:0,boost:1,lim:true});fxUI();fxChg()};
+const cv=$('#spec'),cx=cv.getContext('2d');let fd;
+function spec(){requestAnimationFrame(spec);if(!nodes||!play||M!==V||!$('#fx').classList.contains('show'))return;
+ fd=fd||new Uint8Array(nodes.an.frequencyBinCount);nodes.an.getByteFrequencyData(fd);cx.clearRect(0,0,600,110);cx.fillStyle='#4de3c8';
+ for(let i=0;i<48;i++){const h=fd[Math.floor(Math.pow(i/48,1.8)*200)+1]/255*104;cx.fillRect(i*12.5+1,110-h,10,h)}}
+renderList();renderCues();fxUI();ui();spec();
+})();
+</script>
+</body>
+</html>
